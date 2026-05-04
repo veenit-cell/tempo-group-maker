@@ -1,0 +1,783 @@
+openapi: 3.1.0
+info:
+  # Do not change the title, if the title changes, the import paths will be broken
+  title: Api
+  version: 0.1.0
+  description: Temporary Group Maker API
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+    description: Health operations
+  - name: users
+    description: User operations
+  - name: groups
+    description: Group operations
+  - name: messages
+    description: Message operations
+  - name: members
+    description: Group member operations
+  - name: summaries
+    description: Group summary operations
+  - name: dashboard
+    description: Dashboard and analytics
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+
+  /users:
+    get:
+      operationId: listUsers
+      tags: [users]
+      summary: List all users (for member search)
+      parameters:
+        - name: search
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of users
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/User"
+    post:
+      operationId: createUser
+      tags: [users]
+      summary: Create a user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateUserBody"
+      responses:
+        "201":
+          description: Created user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+
+  /users/me:
+    get:
+      operationId: getCurrentUser
+      tags: [users]
+      summary: Get the current session user
+      responses:
+        "200":
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+
+  /groups:
+    get:
+      operationId: listGroups
+      tags: [groups]
+      summary: List groups for current user
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [ACTIVE, EXPIRED, CLOSED, ARCHIVED]
+      responses:
+        "200":
+          description: List of groups
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/GroupWithMeta"
+    post:
+      operationId: createGroup
+      tags: [groups]
+      summary: Create a new temporary group
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateGroupBody"
+      responses:
+        "201":
+          description: Created group
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GroupWithMeta"
+
+  /groups/{groupId}:
+    get:
+      operationId: getGroup
+      tags: [groups]
+      summary: Get a group by ID
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Group detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GroupWithMeta"
+    patch:
+      operationId: updateGroup
+      tags: [groups]
+      summary: Update group (extend deadline, change status)
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateGroupBody"
+      responses:
+        "200":
+          description: Updated group
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GroupWithMeta"
+
+  /groups/{groupId}/close:
+    post:
+      operationId: closeGroup
+      tags: [groups]
+      summary: Close a group permanently (admin only)
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Closed group
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GroupWithMeta"
+
+  /groups/{groupId}/extend:
+    post:
+      operationId: extendGroup
+      tags: [groups]
+      summary: Extend group deadline (admin only)
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ExtendGroupBody"
+      responses:
+        "200":
+          description: Extended group
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GroupWithMeta"
+
+  /groups/{groupId}/branch:
+    post:
+      operationId: branchGroup
+      tags: [groups]
+      summary: Create branch subgroups from a parent group
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BranchGroupBody"
+      responses:
+        "201":
+          description: Created branch groups
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/GroupWithMeta"
+
+  /groups/{groupId}/messages:
+    get:
+      operationId: listMessages
+      tags: [messages]
+      summary: List messages in a group
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+        - name: before
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of messages
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Message"
+    post:
+      operationId: sendMessage
+      tags: [messages]
+      summary: Send a message to a group
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SendMessageBody"
+      responses:
+        "201":
+          description: Sent message
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+
+  /groups/{groupId}/members:
+    get:
+      operationId: listGroupMembers
+      tags: [members]
+      summary: List members of a group
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of members
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/GroupMemberWithUser"
+    post:
+      operationId: addGroupMember
+      tags: [members]
+      summary: Add a member to a group
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddGroupMemberBody"
+      responses:
+        "201":
+          description: Added member
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GroupMemberWithUser"
+
+  /groups/{groupId}/members/{userId}:
+    delete:
+      operationId: removeGroupMember
+      tags: [members]
+      summary: Remove a member from a group
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Member removed
+
+  /groups/{groupId}/summary:
+    get:
+      operationId: getGroupSummary
+      tags: [summaries]
+      summary: Get the AI-generated summary for a group
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Group summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GroupSummary"
+    post:
+      operationId: generateGroupSummary
+      tags: [summaries]
+      summary: Trigger AI summary generation for a group
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "201":
+          description: Generated summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GroupSummary"
+
+  /dashboard/stats:
+    get:
+      operationId: getDashboardStats
+      tags: [dashboard]
+      summary: Get dashboard statistics for the current user
+      responses:
+        "200":
+          description: Dashboard stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardStats"
+
+  /dashboard/expiring-soon:
+    get:
+      operationId: getExpiringSoon
+      tags: [dashboard]
+      summary: Get groups expiring within 7 days
+      responses:
+        "200":
+          description: Expiring groups
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/GroupWithMeta"
+
+  /dashboard/recent-activity:
+    get:
+      operationId: getRecentActivity
+      tags: [dashboard]
+      summary: Get recent message activity across user's groups
+      responses:
+        "200":
+          description: Recent activity
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ActivityItem"
+
+components:
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+      required:
+        - status
+
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        email:
+          type: string
+        avatarUrl:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - name
+        - email
+        - createdAt
+
+    CreateUserBody:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 2
+          maxLength: 50
+        email:
+          type: string
+          format: email
+        avatarUrl:
+          type: string
+          nullable: true
+      required:
+        - name
+        - email
+
+    Group:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        purpose:
+          type: string
+          enum: [event, project, decision, brainstorm, other]
+        createdAt:
+          type: string
+          format: date-time
+        deadline:
+          type: string
+          format: date-time
+        status:
+          type: string
+          enum: [ACTIVE, EXPIRED, CLOSED, ARCHIVED]
+        adminId:
+          type: string
+        parentGroupId:
+          type: string
+          nullable: true
+      required:
+        - id
+        - name
+        - purpose
+        - createdAt
+        - deadline
+        - status
+        - adminId
+
+    GroupWithMeta:
+      allOf:
+        - $ref: "#/components/schemas/Group"
+        - type: object
+          properties:
+            memberCount:
+              type: integer
+            messageCount:
+              type: integer
+            adminName:
+              type: string
+            urgency:
+              type: string
+              enum: [safe, warning, critical, expired]
+            hoursUntilDeadline:
+              type: number
+              nullable: true
+            hasSummary:
+              type: boolean
+            childGroupCount:
+              type: integer
+          required:
+            - memberCount
+            - messageCount
+            - adminName
+            - urgency
+            - hasSummary
+            - childGroupCount
+
+    CreateGroupBody:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 3
+          maxLength: 50
+        purpose:
+          type: string
+          enum: [event, project, decision, brainstorm, other]
+        deadline:
+          type: string
+          format: date-time
+        memberIds:
+          type: array
+          items:
+            type: string
+      required:
+        - name
+        - purpose
+        - deadline
+
+    UpdateGroupBody:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 3
+          maxLength: 50
+        status:
+          type: string
+          enum: [ACTIVE, EXPIRED, CLOSED, ARCHIVED]
+
+    ExtendGroupBody:
+      type: object
+      properties:
+        newDeadline:
+          type: string
+          format: date-time
+        reason:
+          type: string
+          nullable: true
+      required:
+        - newDeadline
+
+    BranchGroupBody:
+      type: object
+      properties:
+        branches:
+          type: array
+          items:
+            $ref: "#/components/schemas/BranchSpec"
+          minItems: 1
+      required:
+        - branches
+
+    BranchSpec:
+      type: object
+      properties:
+        topic:
+          type: string
+        memberIds:
+          type: array
+          items:
+            type: string
+        durationDays:
+          type: integer
+      required:
+        - topic
+        - memberIds
+        - durationDays
+
+    Message:
+      type: object
+      properties:
+        id:
+          type: string
+        groupId:
+          type: string
+        userId:
+          type: string
+        content:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        userName:
+          type: string
+        userAvatarUrl:
+          type: string
+          nullable: true
+      required:
+        - id
+        - groupId
+        - userId
+        - content
+        - createdAt
+        - userName
+
+    SendMessageBody:
+      type: object
+      properties:
+        content:
+          type: string
+          minLength: 1
+          maxLength: 2000
+        userId:
+          type: string
+      required:
+        - content
+        - userId
+
+    GroupMemberWithUser:
+      type: object
+      properties:
+        groupId:
+          type: string
+        userId:
+          type: string
+        role:
+          type: string
+          enum: [ADMIN, PARTICIPANT]
+        joinedAt:
+          type: string
+          format: date-time
+        user:
+          $ref: "#/components/schemas/User"
+      required:
+        - groupId
+        - userId
+        - role
+        - joinedAt
+        - user
+
+    AddGroupMemberBody:
+      type: object
+      properties:
+        userId:
+          type: string
+        role:
+          type: string
+          enum: [ADMIN, PARTICIPANT]
+          default: PARTICIPANT
+      required:
+        - userId
+
+    GroupSummary:
+      type: object
+      properties:
+        id:
+          type: string
+        groupId:
+          type: string
+        generatedAt:
+          type: string
+          format: date-time
+        keyDecisions:
+          type: array
+          items:
+            type: string
+        actionItems:
+          type: array
+          items:
+            type: string
+        participantCount:
+          type: integer
+        suggestedNextAction:
+          type: string
+          enum: [archive, extend, branch, task_board, decision_board]
+          nullable: true
+      required:
+        - id
+        - groupId
+        - generatedAt
+        - keyDecisions
+        - actionItems
+        - participantCount
+
+    DashboardStats:
+      type: object
+      properties:
+        activeGroups:
+          type: integer
+        expiredGroups:
+          type: integer
+        closedGroups:
+          type: integer
+        archivedGroups:
+          type: integer
+        totalMessages:
+          type: integer
+        groupsByPurpose:
+          type: array
+          items:
+            $ref: "#/components/schemas/PurposeCount"
+      required:
+        - activeGroups
+        - expiredGroups
+        - closedGroups
+        - archivedGroups
+        - totalMessages
+        - groupsByPurpose
+
+    PurposeCount:
+      type: object
+      properties:
+        purpose:
+          type: string
+        count:
+          type: integer
+      required:
+        - purpose
+        - count
+
+    ActivityItem:
+      type: object
+      properties:
+        groupId:
+          type: string
+        groupName:
+          type: string
+        lastMessage:
+          type: string
+          nullable: true
+        lastMessageAt:
+          type: string
+          format: date-time
+          nullable: true
+        lastMessageUser:
+          type: string
+          nullable: true
+        urgency:
+          type: string
+          enum: [safe, warning, critical, expired]
+      required:
+        - groupId
+        - groupName
+        - urgency
